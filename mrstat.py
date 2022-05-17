@@ -4,7 +4,7 @@ import csv, math, random, sys
 
 from PyQt5.QtCore import QAbstractTableModel, QSize, Qt
 from PyQt5.QtGui import QColor, QIcon, QPalette, QPixmap
-from PyQt5.QtWidgets import QAction, QApplication, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog, QFormLayout, QFrame, QGridLayout, QGroupBox, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QPushButton, QSizePolicy, QSpinBox, QStackedLayout, QStatusBar, QStyle, QTabWidget, QTableView, QTableWidget, QTableWidgetItem, QToolBar, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QAbstractScrollArea, QAction, QApplication, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog, QFormLayout, QFrame, QGridLayout, QGroupBox, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QPushButton, QSizePolicy, QSpinBox, QStackedLayout, QStatusBar, QStyle, QTabWidget, QTableView, QTableWidget, QTableWidgetItem, QToolBar, QVBoxLayout, QWidget
 
 from pyqtgraph import PlotWidget, plot
 import pyqtgraph as pg
@@ -195,20 +195,15 @@ class App(QMainWindow):
     self.table.setModel(self.model)
 
   def btn_open_click(self):
-    print('open button clicked')
     file_name, _ = QFileDialog.getOpenFileName(self, "QFileDialog.getOpenFileName()", "", "CSV Files (*.csv)")
     if file_name:
-      print(file_name)
       self.labels_present = self.dialog_yn('Labels present?', 'Are labels present in the dataset?', QMessageBox.Question)
-      print(self.labels_present)
       with open(file_name, 'r') as dfp:
         csv_data = list(csv.reader(dfp))
         if self.labels_present:
-          print('we have labels')
           self.labels = csv_data[0]
           csv_data.pop(0)
         else:
-          print('no labels')
           self.labels = [i + 1 for i in range(len(csv_data[0]))]
         self.file_data = csv_data
         self.fill_data_table()
@@ -219,7 +214,6 @@ class App(QMainWindow):
 
   def cmb_method_index_changed(self, idx):
     method = str(self.cmb_method.currentText())
-    print('method: ' + method)
     if method == 'Least Squares':
       self.dspn_alpha.setEnabled(False)
       self.dspn_gamma.setEnabled(False)
@@ -244,23 +238,18 @@ class App(QMainWindow):
       print('not sure how to proceed...')
 
   def dspn_alpha_changed(self, idx):
-    print('test')
     print('index: ' + str(idx))
 
   def dspn_gamma_changed(self, idx):
-    print('test')
     print('index: ' + str(idx))
 
   def dspn_beta_changed(self, idx):
-    print('test')
     print('index: ' + str(idx))
   
   def spn_periods_changed(self, idx):
-    print('test')
     print('index: ' + str(idx))
 
   def btn_scatterplot_click(self):
-    print('test')
     if self.file_data:
       self.x_vals = [int(self.file_data[i][len(self.labels) - 2]) for i in range(len(self.file_data))]
       self.y_vals = [int(self.file_data[i][len(self.labels) - 1]) for i in range(len(self.file_data))]
@@ -273,7 +262,6 @@ class App(QMainWindow):
       self.dialog_alert('Error!', 'No dataset available to process.', QMessageBox.Question)
 
   def btn_trendplot_click(self):
-    print('test')
     if self.file_data:
       self.x_vals = [int(self.file_data[i][len(self.labels) - 2]) for i in range(len(self.file_data))]
       self.y_vals = [int(self.file_data[i][len(self.labels) - 1]) for i in range(len(self.file_data))]
@@ -286,7 +274,6 @@ class App(QMainWindow):
       self.dialog_alert('Error!', 'No dataset available to process.', QMessageBox.Question)
 
   def btn_analyze_click(self):
-    print('test')
     method = str(self.cmb_method.currentText())
     if method == 'Least Squares':
       self.calc_least_squares()
@@ -352,15 +339,15 @@ class App(QMainWindow):
       reg_line_x.append(idx)
       reg_line_y.append(int(b0 + b1 * idx))
       y_bar_line.append(y_bar)
-    self.graph.plot(reg_line_x, reg_line_y, pen=pg.mkPen(color='r'))
+    self.graph.plot(reg_line_x, reg_line_y, pen=pg.mkPen(color='c'))
     self.graph.plot(reg_line_x, y_bar_line, pen=pg.mkPen(color='b'))
     self.graph.setX(0)
     self.anova_data = [[ssr, 1, (ssr / 1), ((ssr / 1) / mse), ''], [sse, (len(self.x_vals) - 2), mse, '', ''], [sst, (len(self.x_vals) - 1), '', '', '']]
     self.analyze_anova()
 
   def calc_mv_avg(self):
-    print('we will handle moving averages here...')
-    forecast_data = []
+    forecast_data, for_line_x, for_line_y = [], [], []
+    f_err = 0
     err = 0.0
     period = int(self.spn_periods.value())
     for idx in range(period):
@@ -369,31 +356,45 @@ class App(QMainWindow):
       f = round((self.y_vals[idx - period] + self.y_vals[idx - period + 1] + self.y_vals[idx - period + 2]) / period)
       e = self.y_vals[idx] - f
       forecast_data.append([idx + 1, self.y_vals[idx], f, e, pow(e, 2)])
+      for_line_x.append(idx + 1)
+      for_line_y.append(f)
+      f_err += e
       err += pow(e, 2)
-      print('we will do something...')
     print(err)
-    #print(forecast_data)
     self.other_headers = ['Week', 'Time Series Value', 'Forecast', 'Forecast Error', 'Squared Forecast Error']
     self.other_rows = []
     self.other_data = forecast_data
+    self.other_data.append(['', '', 'Totals', f_err, err])
+    mse = err / len(for_line_x)
+    self.other_data.append(['', '', '', 'MSE', mse])
     self.analyze_other()
+    self.graph.plot(for_line_x, for_line_y, pen=pg.mkPen(color='c'))
 
   def calc_exp_smoothing(self):
     print('we will handle exponential smoothing here...')
     forecast_data = [[1, self.y_vals[0], 0, 0, 0], [2, self.y_vals[1], self.y_vals[0], self.y_vals[1] - self.y_vals[0], pow(self.y_vals[1] - self.y_vals[0], 2)]]
+    for_line_x = [2]
+    for_line_y = [self.y_vals[1]]
+    f_err = self.y_vals[1] - self.y_vals[0]
     err = pow(self.y_vals[1] - self.y_vals[0], 2)
     alpha = float(self.dspn_alpha.value())
     for idx in range(2, len(self.y_vals)):
       f = round((alpha * self.y_vals[idx - 1]) + ((1 - alpha) * forecast_data[idx - 1][2]), 2)
       e = round(self.y_vals[idx] - f, 2)
       forecast_data.append([idx + 1, self.y_vals[idx], f, e, round(pow(e, 2), 2)])
+      for_line_x.append(idx + 1)
+      for_line_y.append(f)
+      f_err += e
       err += round(pow(e, 2), 2)
     print(err)
-    #print(forecast_data)
     self.other_headers = ['Week', 'Time Series Value', 'Forecast', 'Forecast Error', 'Squared Forecast Error']
     self.other_rows = []
     self.other_data = forecast_data
+    self.other_data.append(['', '', 'Totals', f_err, err])
+    mse = err / len(for_line_x)
+    self.other_data.append(['', '', '', 'MSE', mse])
     self.analyze_other()
+    self.graph.plot(for_line_x, for_line_y, pen=pg.mkPen(color='c'))
 
   def calc_trend_projection(self):
     self.other_data = []
@@ -460,4 +461,3 @@ if __name__ == '__main__':
   app = QApplication(sys.argv)
   ex = App()
   sys.exit(app.exec_())
-
