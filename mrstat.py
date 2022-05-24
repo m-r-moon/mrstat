@@ -41,7 +41,7 @@ class App(QMainWindow):
 
     form_layout.addWidget(QLabel('Method'))
     self.cmb_method = QComboBox()
-    self.cmb_method.addItems(['Least Squares', 'Moving Average', 'Exponential Smoothing', 'Trend Projection'])
+    self.cmb_method.addItems(['Least Squares', 'Moving Average', 'Exponential Smoothing', 'Linear Trend', 'Trend Projection'])
     self.cmb_method.currentIndexChanged.connect(self.cmb_method_index_changed)
     self.cmb_method.setEnabled(False)
     form_layout.addWidget(self.cmb_method)
@@ -228,12 +228,17 @@ class App(QMainWindow):
       self.dspn_alpha.setEnabled(True)
       self.dspn_gamma.setEnabled(False)
       self.dspn_beta.setEnabled(False)
+      self.spn_periods.setEnabled(True)
+    elif method == 'Linear Trend':
+      self.dspn_alpha.setEnabled(False)
+      self.dspn_gamma.setEnabled(False)
+      self.dspn_beta.setEnabled(False)
       self.spn_periods.setEnabled(False)
     elif method == 'Trend Projection':
       self.dspn_alpha.setEnabled(False)
       self.dspn_gamma.setEnabled(False)
       self.dspn_beta.setEnabled(False)
-      self.spn_periods.setEnabled(False)
+      self.spn_periods.setEnabled(True)
     else:
       print('not sure how to proceed...')
 
@@ -252,7 +257,7 @@ class App(QMainWindow):
   def btn_scatterplot_click(self):
     if self.file_data:
       self.x_vals = [int(self.file_data[i][len(self.labels) - 2]) for i in range(len(self.file_data))]
-      self.y_vals = [int(self.file_data[i][len(self.labels) - 1]) for i in range(len(self.file_data))]
+      self.y_vals = [float(self.file_data[i][len(self.labels) - 1]) for i in range(len(self.file_data))]
       self.graph.setLabel('left', self.labels[len(self.labels) - 2])
       self.graph.setLabel('bottom', self.labels[len(self.labels) - 1])
       self.graph.addLegend()
@@ -263,8 +268,11 @@ class App(QMainWindow):
 
   def btn_trendplot_click(self):
     if self.file_data:
-      self.x_vals = [int(self.file_data[i][len(self.labels) - 2]) for i in range(len(self.file_data))]
-      self.y_vals = [int(self.file_data[i][len(self.labels) - 1]) for i in range(len(self.file_data))]
+      if len(self.labels) > 2:
+        self.x_vals = [i + 1 for i in range(len(self.file_data))]
+      else:
+        self.x_vals = [int(self.file_data[i][len(self.labels) - 2]) for i in range(len(self.file_data))]
+      self.y_vals = [float(self.file_data[i][len(self.labels) - 1]) for i in range(len(self.file_data))]
       self.graph.setLabel('left', self.labels[len(self.labels) - 2])
       self.graph.setLabel('bottom', self.labels[len(self.labels) - 1])
       self.graph.addLegend()
@@ -281,6 +289,8 @@ class App(QMainWindow):
       self.calc_mv_avg()
     elif method == 'Exponential Smoothing':
       self.calc_exp_smoothing()
+    elif method == 'Linear Trend':
+      self.calc_linear_trend()
     elif method == 'Trend Projection':
       self.calc_trend_projection()
     else:
@@ -350,17 +360,18 @@ class App(QMainWindow):
     f_err = 0
     err = 0.0
     period = int(self.spn_periods.value())
-    for idx in range(period):
+    mv_avg = self.moving_average(period, self.y_vals)
+    for idx in range(period - 1):
       forecast_data.append([idx + 1, self.y_vals[0], 0, 0, 0])
-    for idx in range(period, len(self.y_vals)):
-      f = round((self.y_vals[idx - period] + self.y_vals[idx - period + 1] + self.y_vals[idx - period + 2]) / period)
+    for idx in range(period - 1, len(self.y_vals)):
+      f = mv_avg[idx]
       e = self.y_vals[idx] - f
       forecast_data.append([idx + 1, self.y_vals[idx], f, e, pow(e, 2)])
       for_line_x.append(idx + 1)
       for_line_y.append(f)
       f_err += e
       err += pow(e, 2)
-    print(err)
+    print('Error: ' + str(err))
     self.other_headers = ['Week', 'Time Series Value', 'Forecast', 'Forecast Error', 'Squared Forecast Error']
     self.other_rows = []
     self.other_data = forecast_data
@@ -371,7 +382,6 @@ class App(QMainWindow):
     self.graph.plot(for_line_x, for_line_y, pen=pg.mkPen(color='c'))
 
   def calc_exp_smoothing(self):
-    print('we will handle exponential smoothing here...')
     forecast_data = [[1, self.y_vals[0], 0, 0, 0], [2, self.y_vals[1], self.y_vals[0], self.y_vals[1] - self.y_vals[0], pow(self.y_vals[1] - self.y_vals[0], 2)]]
     for_line_x = [2]
     for_line_y = [self.y_vals[1]]
@@ -398,26 +408,37 @@ class App(QMainWindow):
 
   def calc_trend_projection(self):
     self.other_data = []
-    sum_t, t_bar, sum_Y, Y_bar, sum_t2, sumtY, b1, b0 = 0, 0, 0, 0, 0, 0, 0, 0
+    period = int(self.spn_periods.value())
+    t, sum_t, t2, sum_t2 = 0, 0, 0, 0
+    yT, sum_yT, tYT, sum_tYT = 0.0, 0.0, 0.0, 0.0
+    mv_avg = self.moving_average(period, self.y_vals)
+    cma = self.moving_average(2, mv_avg)
+    siv = []
     for idx in range(len(self.y_vals)):
-      t = idx + 1
-      sum_t += t
-      Yt = self.y_vals[idx]
-      sum_Y += Yt
-      tYt = t * Yt
-      sum_tY += tYt
-      t2 = pow(t, 2)
-      sum_t2 += t2
-      self.other_data.append([t, Yt, tYt, t2])
-    t_bar = sum_t / len(self.y_vals)
-    Y_bar = sum_Y / len(self.y_vals)
-    b1 = (sum_tY - (sum_t * sum_Y) / len(self.y_vals)) / (sum_t2 - pow(sum_t, 2) / len(self.y_vals))
-    b0 = (Y_bar - (b1 * t_bar))
-    self.other_data.append([sum_t, sum_Y, sum_tY, sum_t2])
-    self.other_data.append([t_bar, Y_bar, b1, b0])
-    self.other_data.append([(len(self.y_vals) + 1), (b0 + (b1 * (len(self.y_vals) + 1))), 0, 0])
-    self.other_headers = ['t', 'Yt', 'tYt', 't2']
+      if cma[idx] != 0.0:
+        siv.append(round(self.y_vals[idx - 2] / cma[idx], 3))
+      else:
+        siv.append(0.0)
+    print(siv)
+    print('element count: ' + str(len(siv)))
+    self.other_data = self.file_data
+    for idx in range(len(self.file_data)):
+      self.other_data[idx].append(mv_avg[idx])
+      self.other_data[idx].append(cma[idx])
+      self.other_data[idx].append(siv[idx])
+    print('other_data')
+    print(self.other_data)
+    self.other_headers = self.labels
+    self.other_headers.append('Moving Avg.')
+    self.other_headers.append('Cntr. Mving Avg.')
+    self.other_headers.append('SIV')
+    print('other_headers')
+    print(self.other_headers)
     self.analyze_other()
+
+  def calc_linear_trend():
+    print('calculate linear trend')
+    # stuff
 
   def analyze_anova(self):
     print('anova analysis data...')
@@ -430,6 +451,32 @@ class App(QMainWindow):
     print('other analysis data...')
     self.analysis_model = Table(self.other_data, self.other_headers, self.other_rows)
     self.analysis.setModel(self.analysis_model)
+
+  def moving_average(self, period, data):
+    mv_avgs = []
+    for idx in range(period - 1):
+      mv_avgs.append(0)
+    for idx in range(period - 1, len(data)):
+      mv_avg_sum = 0.0
+      for i in range(period):
+        mv_avg_sum += float(data[idx - i])
+      mv_avgs.append(round(mv_avg_sum / period, 3))
+    print(mv_avgs)
+    print('element count: ' + str(len(mv_avgs)))
+    return mv_avgs
+
+  def center_moving_average(self, period, data):
+    cntr_mv_avgs = []
+    for idx in range(period - 1):
+      cntr_mv_avgs.append(0)
+    for idx in range(period - 1, len(data)):
+      cntr_mv_avg_sum = 0.0
+      for i in range(int(period / 2)):
+        cntr_mv_avg_sum += float(data[idx - 1])
+      cntr_mv_avgs.append(round(cntr_mv_avg_sum / (period / 2), 3))
+    print(cntr_mv_avgs)
+    print('element count: ' + str(len(cntr_mv_avgs)))
+    return cntr_mv_avgs
 
 
 class Table(QAbstractTableModel):
