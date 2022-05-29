@@ -412,26 +412,49 @@ class App(QMainWindow):
     t, sum_t, t2, sum_t2 = 0, 0, 0, 0
     yT, sum_yT, tYT, sum_tYT = 0.0, 0.0, 0.0, 0.0
     mv_avg = self.moving_average(period, self.y_vals)
+    for idx in range(int(period / 2)):
+      mv_avg.pop(0)
+      mv_avg.append(0)
     cma = self.moving_average(2, mv_avg)
     siv = []
     for idx in range(len(self.y_vals)):
       if cma[idx] != 0.0:
-        siv.append(round(self.y_vals[idx - 2] / cma[idx], 3))
+        siv.append(round(self.y_vals[idx] / cma[idx], 3))
       else:
         siv.append(0.0)
     print(siv)
     print('element count: ' + str(len(siv)))
     self.other_data = self.file_data
+    seas_idxs = []
+    for idx in range(period):
+      print('index: ' + str(idx))
+      seas_idx_sum = 0.0
+      seas_idx_cnt = 0
+      for i in range(len(self.x_vals)):
+        if siv[i] > 0.0:
+          if self.x_vals[i] % period == idx:
+            seas_idx_sum += siv[i]
+            seas_idx_cnt += 1
+      if seas_idx_cnt > 0:
+        seas_idxs.append(round(seas_idx_sum / seas_idx_cnt, 3))
+    seas_idxs.append(seas_idxs.pop(0))
+    print('seasonal index')
+    print(seas_idxs)
+          
     for idx in range(len(self.file_data)):
       self.other_data[idx].append(mv_avg[idx])
       self.other_data[idx].append(cma[idx])
       self.other_data[idx].append(siv[idx])
+      self.other_data[idx].append(seas_idxs[int(idx % period)])
+      self.other_data[idx].append(round(self.y_vals[idx] / seas_idxs[int(idx % period)], 3))
     print('other_data')
     print(self.other_data)
     self.other_headers = self.labels
     self.other_headers.append('Moving Avg.')
     self.other_headers.append('Cntr. Mving Avg.')
     self.other_headers.append('SIV')
+    self.other_headers.append('Seasonal Index')
+    self.other_headers.append('Deseasonalized Sales')
     print('other_headers')
     print(self.other_headers)
     self.analyze_other()
@@ -457,10 +480,17 @@ class App(QMainWindow):
     for idx in range(period - 1):
       mv_avgs.append(0)
     for idx in range(period - 1, len(data)):
+      no_zeros = True
       mv_avg_sum = 0.0
       for i in range(period):
-        mv_avg_sum += float(data[idx - i])
-      mv_avgs.append(round(mv_avg_sum / period, 3))
+        if float(data[idx - i]) > 0:
+          mv_avg_sum += float(data[idx - i])
+        else:
+          no_zeros = False
+      if no_zeros:
+        mv_avgs.append(round(mv_avg_sum / period, 3))
+      else:
+        mv_avgs.append(0)
     print(mv_avgs)
     print('element count: ' + str(len(mv_avgs)))
     return mv_avgs
