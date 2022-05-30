@@ -440,13 +440,16 @@ class App(QMainWindow):
     seas_idxs.append(seas_idxs.pop(0))
     print('seasonal index')
     print(seas_idxs)
-          
+    for_line_x, for_line_y = [], []
     for idx in range(len(self.file_data)):
       self.other_data[idx].append(mv_avg[idx])
       self.other_data[idx].append(cma[idx])
       self.other_data[idx].append(siv[idx])
       self.other_data[idx].append(seas_idxs[int(idx % period)])
       self.other_data[idx].append(round(self.y_vals[idx] / seas_idxs[int(idx % period)], 3))
+      if cma[idx] > 0:
+        for_line_y.append(cma[idx])
+        for_line_x.append(idx + 1)
     print('other_data')
     print(self.other_data)
     self.other_headers = self.labels
@@ -458,6 +461,7 @@ class App(QMainWindow):
     print('other_headers')
     print(self.other_headers)
     self.analyze_other()
+    self.graph.plot(for_line_x, for_line_y, pen=pg.mkPen(color='c'))
 
   def calc_linear_trend():
     print('calculate linear trend')
