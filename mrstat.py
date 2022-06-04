@@ -409,8 +409,8 @@ class App(QMainWindow):
   def calc_trend_projection(self):
     self.other_data = []
     period = int(self.spn_periods.value())
-    t, sum_t, t2, sum_t2 = 0, 0, 0, 0
-    yT, sum_yT, tYT, sum_tYT = 0.0, 0.0, 0.0, 0.0
+    sum_t, sum_t2 = 0, 0
+    sum_yT, sum_tYT, t_bar, y_bar, b0, b1 = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
     mv_avg = self.moving_average(period, self.y_vals)
     for idx in range(int(period / 2)):
       mv_avg.pop(0)
@@ -446,10 +446,33 @@ class App(QMainWindow):
       self.other_data[idx].append(cma[idx])
       self.other_data[idx].append(siv[idx])
       self.other_data[idx].append(seas_idxs[int(idx % period)])
-      self.other_data[idx].append(round(self.y_vals[idx] / seas_idxs[int(idx % period)], 3))
+      deseasonal_data = round(self.y_vals[idx] / seas_idxs[int(idx % period)], 3)
+      t = idx + 1
+      self.other_data[idx].append(deseasonal_data)
+      self.other_data[idx].append(t)
+      self.other_data[idx].append(t * deseasonal_data)
+      self.other_data[idx].append(t ** 2)
+      sum_t += t
+      sum_t2 += t ** 2
+      sum_yT += deseasonal_data
+      sum_tYT += deseasonal_data * t
       if cma[idx] > 0:
         for_line_y.append(cma[idx])
         for_line_x.append(idx + 1)
+    self.other_data.append(['', '', '', '', '', '', 'Totals', sum_yT, sum_t, sum_tYT, sum_t2])
+    t_bar = float(sum_t / len(siv))
+    y_bar = sum_yT / len(siv)
+    b1 = (sum_tYT - ((sum_t * sum_yT) / len(siv))) / (sum_t2 - ((sum_t ** 2) / len(siv)))
+    b0 = (y_bar - (b1 * t_bar))
+    self.other_data.append(['t bar', t_bar, 'y bar', y_bar, 'b0', b0, 'b1', b1, '', 'line', str(b0) + ' + ' + str(b1) + 't'])
+    self.other_data.append(['', '', '', '', '', '', '', '', '', '', ''])
+    for idx in range(period):
+      tP = len(siv) + (idx + 1)
+      tT = b0 + (b1 * tP)
+      trnd_fcast = round(tT * 1000, 0)
+      s_idx = seas_idxs[idx]
+      qtr_fcast = round(trnd_fcast * s_idx, 0)
+      self.other_data.append(['', (idx + 1), trnd_fcast, '', '', '', s_idx, qtr_fcast, '', '', ''])
     print('other_data')
     print(self.other_data)
     self.other_headers = self.labels
@@ -458,6 +481,9 @@ class App(QMainWindow):
     self.other_headers.append('SIV')
     self.other_headers.append('Seasonal Index')
     self.other_headers.append('Deseasonalized Sales')
+    self.other_headers.append('t')
+    self.other_headers.append('tYT')
+    self.other_headers.append('t2')
     print('other_headers')
     print(self.other_headers)
     self.analyze_other()
