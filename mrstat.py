@@ -408,7 +408,7 @@ class App(QMainWindow):
 
   def calc_trend_projection(self):
     self.other_data = []
-    period = int(self.spn_periods.value())
+    period = float(self.spn_periods.value())
     sum_t, sum_t2 = 0, 0
     sum_yT, sum_tYT, t_bar, y_bar, b0, b1 = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
     mv_avg = self.moving_average(period, self.y_vals)
@@ -426,13 +426,13 @@ class App(QMainWindow):
     print('element count: ' + str(len(siv)))
     self.other_data = self.file_data
     seas_idxs = []
-    for idx in range(period):
+    for idx in range(int(period)):
       print('index: ' + str(idx))
       seas_idx_sum = 0.0
       seas_idx_cnt = 0
       for i in range(len(self.x_vals)):
         if siv[i] > 0.0:
-          if self.x_vals[i] % period == idx:
+          if self.x_vals[i] % int(period) == idx:
             seas_idx_sum += siv[i]
             seas_idx_cnt += 1
       if seas_idx_cnt > 0:
@@ -466,7 +466,7 @@ class App(QMainWindow):
     b0 = (y_bar - (b1 * t_bar))
     self.other_data.append(['t bar', t_bar, 'y bar', y_bar, 'b0', b0, 'b1', b1, '', 'line', str(b0) + ' + ' + str(b1) + 't'])
     self.other_data.append(['', '', '', '', '', '', '', '', '', '', ''])
-    for idx in range(period):
+    for idx in range(int(period)):
       tP = len(siv) + (idx + 1)
       tT = b0 + (b1 * tP)
       trnd_fcast = round(tT * 1000, 0)
@@ -507,12 +507,13 @@ class App(QMainWindow):
 
   def moving_average(self, period, data):
     mv_avgs = []
-    for idx in range(period - 1):
+    per = int(period)
+    for idx in range(per - 1):
       mv_avgs.append(0)
-    for idx in range(period - 1, len(data)):
+    for idx in range(per - 1, len(data)):
       no_zeros = True
       mv_avg_sum = 0.0
-      for i in range(period):
+      for i in range(per):
         if float(data[idx - i]) > 0:
           mv_avg_sum += float(data[idx - i])
         else:
@@ -527,13 +528,14 @@ class App(QMainWindow):
 
   def center_moving_average(self, period, data):
     cntr_mv_avgs = []
-    for idx in range(period - 1):
+    per = int(period)
+    for idx in range(per - 1):
       cntr_mv_avgs.append(0)
-    for idx in range(period - 1, len(data)):
+    for idx in range(per - 1, len(data)):
       cntr_mv_avg_sum = 0.0
-      for i in range(int(period / 2)):
+      for i in range(int(per / 2)):
         cntr_mv_avg_sum += float(data[idx - 1])
-      cntr_mv_avgs.append(round(cntr_mv_avg_sum / (period / 2), 3))
+      cntr_mv_avgs.append(round(cntr_mv_avg_sum / (per / 2), 3))
     print(cntr_mv_avgs)
     print('element count: ' + str(len(cntr_mv_avgs)))
     return cntr_mv_avgs
